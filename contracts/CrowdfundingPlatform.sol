@@ -32,7 +32,7 @@ contract CrowdfundingPlatform {
         uint fundingGoal,
         uint duration
     ) external {
-        campaigns[currId] = new Campaign(name,description,fundingGoal,duration);
+        campaigns[currId] = new Campaign(name,description,fundingGoal,duration,msg.sender);
         currId++;
     }
 
@@ -80,21 +80,5 @@ contract CrowdfundingPlatform {
 
         emit dividentDistribution(id, msg.value);
     }
-
-    // function distribute(uint id) external payable { 
-    //     Campaign campaign = campaigns[id];
-    //     require(msg.sender == campaign.creator(), "Only the creator can distribute");
-        
-    //     bytes4 selector = bytes4(keccak256("distributeDividents()"));
-
-    //     // (bool success, ) = address(campaign).call{value: msg.value}(abi.encodeWithSelector(selector));
-    //     // require(success,"err");
-    // }
-
-
-    // //used in testing
-    // function campainGetter(uint id) external view returns(uint){
-    //     return campaigns[id].totalSupply();
-    // }
 
 }

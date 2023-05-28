@@ -21,13 +21,14 @@ contract Campaign is ERC20 {
         string memory name,
         string memory _description,
         uint256 _fundingGoal,
-        uint256 _duration
+        uint256 _duration,
+        address _creator
     ) ERC20 (name, "MTK") {
         description = _description;
         started = block.timestamp;
         maxSupply = _fundingGoal;
         duration = _duration;
-        creator = msg.sender;
+        creator = _creator;
     }
 
 
@@ -63,17 +64,17 @@ contract Campaign is ERC20 {
     //=> the creator should insert msg.value that will be the distribution => payable
     
     function distributeDividents(address[] memory contributors) external payable {
-        for (uint i=0; i <= contributors.length; i++) {
+        for (uint i=0; i < contributors.length; i++) {
 
             address contributor = contributors[i];
             uint balance = balanceOf(contributor);
             
             require(balance!=0,"Insufficient balance"); //check
             
-            //All balances add up to the total supply => the sum off all proportions will equal 1.
-            // => the sum distributed away will equal the sum injected in the payable function
-            uint proportion = balance / totalSupply();
-            uint distribution = proportion * msg.value;
+            //@notice *100 followed by /100 looks illogical at first as they cancel out, 
+            //but is required due to the way solidity only uses intigers
+            uint proportion = balance * 100 / totalSupply();
+            uint distribution = proportion * msg.value / 100;
             
             dividentHistory[currentDivident][contributor] = true; //effect      
 
