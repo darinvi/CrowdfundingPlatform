@@ -5,6 +5,10 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract Campaign is ERC20 {
 
+    uint currentDivident;
+    //divident -> contributor -> received divident
+    mapping (uint => mapping (address => bool)) dividentHistory;
+
     string public description;
     uint public maxSupply;
     uint public duration;
@@ -35,7 +39,7 @@ contract Campaign is ERC20 {
     function refund(address[] memory contributors) external payable {
         //No need to check if msg.value sufficient as I am sending vlaue equal to the totalSupply.
         //No need to validate if campaign active as already checked before calling the function in the crowdFunding contract.
-        require(!refunded,"Already refunded"); //check
+        require(!refunded,"Already refunded");
 
         for (uint i=0; i < contributors.length; i++){
         
@@ -47,23 +51,21 @@ contract Campaign is ERC20 {
                 (bool success, ) = address(contributor).call{value: balance}(""); //interaction
                 require(success,"err");
             }
-        
-        refunded = true;
-
         }
 
-        //if we get to this line without revert -> refund is succesfull so empty the array
-        allContributors = new address[](0);
+        //If refunded gets set to true before the actual payout loop, there would be a potential security issue.
+        //A reentrancy attack would cause the require to revert and some people might not have gotten their refund.
+        refunded = true;
     }
 
 
     //@notice From what I understand, the payment must be separate from what the investors put in
-    //=> the creator should insert msg.value that will be the distribution amount => payable
+    //=> the creator should insert msg.value that will be the distribution => payable
     
     function distributeDividents(address[] memory contributors) external payable {
-        for (uint i=0; i <= allContributors.length; i++) {
+        for (uint i=0; i <= contributors.length; i++) {
 
-            address contributor = allContributors[i];
+            address contributor = contributors[i];
             uint balance = balanceOf(contributor);
             
             require(balance!=0,"Insufficient balance"); //check
@@ -73,11 +75,13 @@ contract Campaign is ERC20 {
             uint proportion = balance / totalSupply();
             uint distribution = proportion * msg.value;
             
-            //No need for effect as the creator is giving away dividents. Only interaction required
+            dividentHistory[currentDivident][contributor] = true; //effect      
 
             (bool success, ) = address(contributor).call{value: distribution}(""); //interaction
             require(success,"err");
         }
+    
+        currentDivident++;
     }
 
 

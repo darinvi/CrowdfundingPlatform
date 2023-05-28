@@ -6,13 +6,19 @@ import "./Campaign.sol";
 contract CrowdfundingPlatform {
 
     uint public currId;
+
     //id -> campaign
     mapping (uint => Campaign) private campaigns;
+
     //creator -> campaign id -> true if funds released (one creator can have more than one campaign)
     mapping (address => mapping (uint => bool)) released;
+
     //campaign -> all contributors
     mapping (uint => address[]) contributors;
 
+    event campaignRefunded(uint id);
+
+    event dividentDistribution(uint id, uint amount);
 
     //@notice checks if the campaign with the given id is still active.
     function checkCampainActive(uint id) internal view returns(bool){
@@ -60,18 +66,30 @@ contract CrowdfundingPlatform {
 
     function refund(uint id) external {
         require(!checkCampainActive(id),"Campaign must have expired for refunds");
+        
         campaigns[id].refund{value: campaigns[id].totalSupply()}(contributors[id]);
+        
+        emit campaignRefunded(id);
     }
 
     function distribute(uint id) external payable { 
         Campaign campaign = campaigns[id];
         require(msg.sender == campaign.creator(), "Only the creator can distribute");
         
-        bytes4 selector = bytes4(keccak256("distributeDividents()"));
+        campaign.distributeDividents{value: msg.value}(contributors[id]);
 
-        // (bool success, ) = address(campaign).call{value: msg.value}(abi.encodeWithSelector(selector));
-        // require(success,"err");
+        emit dividentDistribution(id, msg.value);
     }
+
+    // function distribute(uint id) external payable { 
+    //     Campaign campaign = campaigns[id];
+    //     require(msg.sender == campaign.creator(), "Only the creator can distribute");
+        
+    //     bytes4 selector = bytes4(keccak256("distributeDividents()"));
+
+    //     // (bool success, ) = address(campaign).call{value: msg.value}(abi.encodeWithSelector(selector));
+    //     // require(success,"err");
+    // }
 
 
     // //used in testing

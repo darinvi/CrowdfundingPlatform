@@ -9,6 +9,4 @@ task("deploy","Deploy")
         await platform.deployed();
 
         console.log(`platform deployed to ${platform.address} with owner ${deployer.address}`);
-
-        console.log(taskArgs.account);
     });
