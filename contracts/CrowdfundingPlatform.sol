@@ -1,72 +1,83 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.9;
+pragma solidity 0.8.17;
+
+import "./Campaign.sol";
 
 contract CrowdfundingPlatform {
 
-    uint public currentId = 1;
+    uint public currId;
+    //id -> campaign
+    mapping (uint => Campaign) private campaigns;
+    //creator -> campaign id -> true if funds released (one creator can have more than one campaign)
+    mapping (address => mapping (uint => bool)) released;
 
-    mapping (uint => Campaign) private campains;
-    mapping (uint => mapping (address => uint)) private contributors;
 
-    struct Campaign {
-        string name;
-        string description;
-        uint goal;
-        uint raised;
-        uint started;
-        uint duration;
-        address owner;
-        bool finalized;
+    //@notice checks if the campaign with the given id is still active.
+    function checkCampainActive(uint id) internal view returns(bool){
+        return block.timestamp <= campaigns[id].started() + campaigns[id].duration();
     }
 
 
-    function startCampain(string memory name, string memory description, uint goal, uint duration) public {
-
-        campains[currentId] = Campaign({
-            name: name,
-            description: description,
-            goal: goal,
-            raised: 0,
-            started: block.timestamp,
-            duration: duration,
-            owner: msg.sender,
-            finalized: false
-        });
-
-        currentId ++;
+    function createCampaign(
+        string memory name,
+        string memory description,
+        uint fundingGoal,
+        uint duration
+    ) external {
+        campaigns[currId] = new Campaign(name,description,fundingGoal,duration);
+        currId++;
     }
 
 
-    function contribute(uint id) public payable {
-        require(msg.value <= campains[id].goal - campains[id].raised, 'Goal will be exceeded with this contribution');
-        require(block.timestamp < campains[id].started + campains[id].duration, 'Campain has expired');
+    function contribute(uint id) external payable {
+        Campaign campaign = campaigns[id];
+        require(msg.value + campaign.totalSupply() <= campaign.maxSupply(), "Funds already raised"); 
+        require(checkCampainActive(id), "Campaign has expired");
+        require(!released[campaign.creator()][id],"Can't contribute to released.");
+
+        campaign.mint(msg.sender,msg.value);
         
-        campains[id].raised += msg.value;
-        contributors[id][msg.sender] += msg.value;
-
-        if (campains[id].goal == campains[id].raised){
-            require(!campains[id].finalized,'Already paid');
-            campains[id].finalized = true;
-            releaseOfFunds(campains[id].owner, campains[id].goal);
+        //Release of funds automated, no need for the creator to worry about it
+        if (campaign.totalSupply() == campaign.maxSupply()) {
+            releaseOfFunds(campaign.creator(),id);
         }
-
     }
 
 
-    function releaseOfFunds(address target, uint amount) internal {
-        (bool success,) = payable(target).call{value: amount}('');
-        require(success,'error');
+    function releaseOfFunds(address creator, uint id) internal {
+        //No need to check if funding goal reached as I do before calling the funciton
+        require(!released[creator][id],"Already released"); //check
+
+        released[creator][id] = true;  //effect
+        
+        (bool success,) = creator.call{value: campaigns[id].totalSupply()}(""); //interaction
+        require(success,"err");
     }
 
 
-    function refund(uint id) public {
-        require(block.timestamp > campains[id].started + campains[id].duration, 'Campain not finished yet');
-        require(contributors[id][msg.sender]>0,'Not a contributor for the given campain');
+    function refund(uint id) external {
+        require(!checkCampainActive(id),"Campaign must have expired for refunds");
 
-        uint sum = contributors[id][msg.sender];
-        delete contributors[id][msg.sender];
-        releaseOfFunds(msg.sender,sum);
+        bytes4 selector = bytes4(keccak256("refund()"));
 
+        (bool success, ) = address(campaigns[id]).call{value: campaigns[id].totalSupply()}(abi.encodeWithSelector(selector));
+        require(success,"err");
+    }
+
+    function distribute(uint id) external payable { 
+        Campaign campaign = campaigns[id];
+        require(msg.sender == campaign.creator(), "Only the creator can distribute");
+        
+        bytes4 selector = bytes4(keccak256("distributeDividents()"));
+
+        (bool success, ) = address(campaign).call{value: msg.value}(abi.encodeWithSelector(selector));
+        require(success,"err");
+    }
+
+
+    //used in testing
+    function campainGetter(uint id) external view returns(uint){
+        return campaigns[id].totalSupply();
     }
 
 }
