@@ -10,6 +10,8 @@ contract CrowdfundingPlatform {
     mapping (uint => Campaign) private campaigns;
     //creator -> campaign id -> true if funds released (one creator can have more than one campaign)
     mapping (address => mapping (uint => bool)) released;
+    //campaign -> all contributors
+    mapping (uint => address[]) contributors;
 
 
     //@notice checks if the campaign with the given id is still active.
@@ -35,6 +37,7 @@ contract CrowdfundingPlatform {
         require(checkCampainActive(id), "Campaign has expired");
         require(!released[campaign.creator()][id],"Can't contribute to released.");
 
+        contributors[id].push(msg.sender);
         campaign.mint(msg.sender,msg.value);
         
         //Release of funds automated, no need for the creator to worry about it
@@ -57,11 +60,7 @@ contract CrowdfundingPlatform {
 
     function refund(uint id) external {
         require(!checkCampainActive(id),"Campaign must have expired for refunds");
-
-        bytes4 selector = bytes4(keccak256("refund()"));
-
-        (bool success, ) = address(campaigns[id]).call{value: campaigns[id].totalSupply()}(abi.encodeWithSelector(selector));
-        require(success,"err");
+        campaigns[id].refund{value: campaigns[id].totalSupply()}(contributors[id]);
     }
 
     function distribute(uint id) external payable { 
@@ -70,14 +69,14 @@ contract CrowdfundingPlatform {
         
         bytes4 selector = bytes4(keccak256("distributeDividents()"));
 
-        (bool success, ) = address(campaign).call{value: msg.value}(abi.encodeWithSelector(selector));
-        require(success,"err");
+        // (bool success, ) = address(campaign).call{value: msg.value}(abi.encodeWithSelector(selector));
+        // require(success,"err");
     }
 
 
-    //used in testing
-    function campainGetter(uint id) external view returns(uint){
-        return campaigns[id].totalSupply();
-    }
+    // //used in testing
+    // function campainGetter(uint id) external view returns(uint){
+    //     return campaigns[id].totalSupply();
+    // }
 
 }

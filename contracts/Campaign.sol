@@ -10,7 +10,7 @@ contract Campaign is ERC20 {
     uint public duration;
     uint public started;
     address public creator;
-    address[] private allContributors;
+    bool public refunded = false;
 
     //symbol is "MTK" for all as only name required in homework description
     constructor(
@@ -29,17 +29,17 @@ contract Campaign is ERC20 {
 
     function mint(address to, uint256 amount) public {    
         _mint(to, amount);
-        allContributors.push(to);
     }
 
 
-    function refund() external payable {
-        //No need to check if msg.value sufficient as I am sending .call{value: totalSupply} in the crowdFunding contract.
+    function refund(address[] memory contributors) external payable {
+        //No need to check if msg.value sufficient as I am sending vlaue equal to the totalSupply.
         //No need to validate if campaign active as already checked before calling the function in the crowdFunding contract.
+        require(!refunded,"Already refunded"); //check
+
+        for (uint i=0; i < contributors.length; i++){
         
-        for (uint i=0; i <= allContributors.length; i++){
-        
-            address contributor = allContributors[i];
+            address contributor = contributors[i];
             uint balance = balanceOf(contributor);
             
             if ( balance != 0) {  //check
@@ -47,6 +47,9 @@ contract Campaign is ERC20 {
                 (bool success, ) = address(contributor).call{value: balance}(""); //interaction
                 require(success,"err");
             }
+        
+        refunded = true;
+
         }
 
         //if we get to this line without revert -> refund is succesfull so empty the array
@@ -57,7 +60,7 @@ contract Campaign is ERC20 {
     //@notice From what I understand, the payment must be separate from what the investors put in
     //=> the creator should insert msg.value that will be the distribution amount => payable
     
-    function distributeDividents() external payable {
+    function distributeDividents(address[] memory contributors) external payable {
         for (uint i=0; i <= allContributors.length; i++) {
 
             address contributor = allContributors[i];
