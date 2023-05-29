@@ -14,11 +14,6 @@ describe("CrowdfundingPlatform", function () {
   this.beforeAll(async function () {
     [deployer, firstUser, secondUser, thirdUser] = await ethers.getSigners();
     
-    users = {
-      0: secondUser,
-      1: thirdUser
-    }
-
     const { platform } = await loadFixture(deployAndStartCampaign);
     crowdfundingFirstUser = getFirstUserCrowdfunding(platform, firstUser);
   })
@@ -50,30 +45,37 @@ describe("CrowdfundingPlatform", function () {
 
   async function createShortCampaign() {
     const { platform, creator, goal} = await loadFixture(deployAndStartCampaign);
-    const five_seconds = 2;
+    const five_seconds = 5;
     await creator.createCampaign("test","description",goal,five_seconds);
     return {platform}
   }
 
 
   describe("Refund", function () {
-    it("Should revert if not called by creator",async function () {
+    it("Should succeed",async function () {
       const { platform } = await loadFixture(createShortCampaign);
 
-      const dividents = ethers.utils.parseEther("10");
+      // const dividents = ethers.utils.parseEther("10");
       const price = ethers.utils.parseEther("1");
       
-      for (let i=0; i < 2; i++){
-        const currUser = platform.connect(secondUser);
+      for (const user of [secondUser,thirdUser]){
+        const currUser = platform.connect(user);
         await currUser.contribute(0,{value: price});        
       }
 
-      expect(await platform.campainGetter(0)).to.equal(ethers.utils.parseEther("2"));
+      const crowdfundingFirstUser = await platform.connect(firstUser);
 
-      setTimeout(async ()=>{},6000);
+      //make sure the contributions have been succesfull.
+      expect(await crowdfundingFirstUser.testCampaignGetter(0)).to.equal(ethers.utils.parseEther("2"));
+      
+      //wait for the short campaign to expire
+      await delay(5000);
+      
+      await crowdfundingFirstUser.refund(0);      
 
-      await crowdfundingFirstUser.refund(0);
-
+      //make sure the funds have really been returned.
+      expect(await crowdfundingFirstUser.testCampaignGetter(0)).to.equal(0);
+      
     });
   });
 
@@ -81,6 +83,10 @@ describe("CrowdfundingPlatform", function () {
 });
 
 
-function getFirstUserCrowdfunding(platform, firstUser) {
+async function getFirstUserCrowdfunding(platform, firstUser) {
   return platform.connect(firstUser)
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

@@ -65,20 +65,21 @@ contract CrowdfundingPlatform {
 
 
     function refund(uint id) external {
-        require(!checkCampainActive(id),"Campaign must have expired for refunds");
-        
+        //requires have to be implemented in the campain contract as if they were implemented here,
+        //funciton calls from other places would offer possible angles for an attack vector      
         campaigns[id].refund{value: campaigns[id].totalSupply()}(contributors[id]);
-        
         emit campaignRefunded(id);
     }
 
     function distribute(uint id) external payable { 
-        Campaign campaign = campaigns[id];
-        require(msg.sender == campaign.creator(), "Only the creator can distribute");
-        
-        campaign.distributeDividents{value: msg.value}(contributors[id]);
-
+        // access control implemented in the campaign contract        
+        campaigns[id].distributeDividents{value: msg.value}(contributors[id],msg.sender);
         emit dividentDistribution(id, msg.value);
+    }
+
+    //only implemented for use in tests
+    function testCampaignGetter(uint id) public view returns(uint) {
+        return campaigns[id].totalSupply();
     }
 
 }

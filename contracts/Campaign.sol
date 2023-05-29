@@ -38,8 +38,8 @@ contract Campaign is ERC20 {
 
 
     function refund(address[] memory contributors) external payable {
-        //No need to check if msg.value sufficient as I am sending vlaue equal to the totalSupply.
-        //No need to validate if campaign active as already checked before calling the function in the crowdFunding contract.
+        require(msg.value == totalSupply(),"Not enough ether");
+        require(block.timestamp > started + duration,"Campaign hasn't expired");
         require(!refunded,"Already refunded");
 
         for (uint i=0; i < contributors.length; i++){
@@ -63,7 +63,9 @@ contract Campaign is ERC20 {
     //@notice From what I understand, the payment must be separate from what the investors put in
     //=> the creator should insert msg.value that will be the distribution => payable
     
-    function distributeDividents(address[] memory contributors) external payable {
+    function distributeDividents(address[] memory contributors, address distributor) external payable {
+        require(distributor == creator, "Only the creator can distribute");
+    
         for (uint i=0; i < contributors.length; i++) {
 
             address contributor = contributors[i];
@@ -72,7 +74,7 @@ contract Campaign is ERC20 {
             require(balance!=0,"Insufficient balance"); //check
             
             //@notice *100 followed by /100 looks illogical at first as they cancel out, 
-            //but is required due to the way solidity only uses intigers
+            //but is required due to the way solidity only uses intigers. Otherwise every proportion would be 0.
             uint proportion = balance * 100 / totalSupply();
             uint distribution = proportion * msg.value / 100;
             
