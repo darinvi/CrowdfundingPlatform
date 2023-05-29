@@ -47,6 +47,7 @@ contract Campaign is ERC20 {
             address contributor = contributors[i];
             uint balance = balanceOf(contributor);
             
+            //If there is balance, we burn the tokens and send the same value to the original owner
             if ( balance != 0) {  //check
                 _burn(contributor,balance); //effect
                 (bool success, ) = address(contributor).call{value: balance}(""); //interaction
@@ -60,8 +61,8 @@ contract Campaign is ERC20 {
     }
 
 
-    //@notice From what I understand, the payment must be separate from what the investors put in
-    //=> the creator should insert msg.value that will be the distribution => payable
+
+    // the creator should insert msg.value that will be distributed.
     
     function distributeDividents(address[] memory contributors, address distributor) external payable {
         require(distributor == creator, "Only the creator can distribute");
@@ -71,19 +72,17 @@ contract Campaign is ERC20 {
             address contributor = contributors[i];
             uint balance = balanceOf(contributor);
             
-            require(balance!=0,"Insufficient balance"); //check
-            
-            //@notice *100 followed by /100 looks illogical at first as they cancel out, 
-            //but is required due to the way solidity only uses intigers. Otherwise every proportion would be 0.
-            uint proportion = balance * 100 / totalSupply();
-            uint distribution = proportion * msg.value / 100;
-            
-            dividentHistory[currentDivident][contributor] = true; //effect      
+            if (!dividentHistory[currentDivident][contributor] && balance > 0){   //check
+                // *100 /100 required otherwise the proportion would always be 0.
+                uint proportion = balance * 100 / totalSupply();
+                uint distribution = proportion * msg.value / 100;
+                
+                dividentHistory[currentDivident][contributor] = true; //effect      
 
-            (bool success, ) = address(contributor).call{value: distribution}(""); //interaction
-            require(success,"err");
+                (bool success, ) = address(contributor).call{value: distribution}(""); //interaction
+                require(success,"err");
+            }
         }
-    
         currentDivident++;
     }
 

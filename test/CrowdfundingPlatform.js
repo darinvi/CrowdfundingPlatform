@@ -5,6 +5,8 @@ const {
 const { anyValue } = require("@nomicfoundation/hardhat-chai-matchers/withArgs");
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
+const { expectRevert } = require("@openzeppelin/test-helpers");
+const ether = require("@openzeppelin/test-helpers/src/ether");
 
 
 describe("CrowdfundingPlatform", function () {
@@ -27,21 +29,13 @@ describe("CrowdfundingPlatform", function () {
     const CrowdfundingPlatformFactory = await ethers.getContractFactory("CrowdfundingPlatform", deployer);
     const platform = await CrowdfundingPlatformFactory.deploy();
 
-    const goal = ethers.utils.parseEther("100");
+    //ethers.utils.parseEther(val) used many times so returning it from toWei
+    const goal = toWei("100");
 
     const creator = platform.connect(firstUser);
 
     return { platform, creator, goal };
   }
-
-  
-  async function createLongCampaign() {
-    const { platform, creator, goal} = await loadFixture(deployAndStartCampaign);
-    const twenty_four_hours = 86_400;
-    await creator.createCampaign("test","description",goal,twenty_four_hours);
-    return {platform}
-  }
-
 
   async function createShortCampaign() {
     const { platform, creator, goal} = await loadFixture(deployAndStartCampaign);
@@ -50,23 +44,28 @@ describe("CrowdfundingPlatform", function () {
     return {platform}
   }
 
+  async function makeContributions() {
+    const {platform} = await loadFixture(createShortCampaign)
+    
+    // const dividents = toWei("10");
+    const price = toWei("1");
+    
+    for (const user of [secondUser,thirdUser]){
+      const currUser = platform.connect(user);
+      await currUser.contribute(0,{value: price});        
+    }
+
+    return {platform}
+  }
 
   describe("Refund", function () {
     it("Should succeed",async function () {
-      const { platform } = await loadFixture(createShortCampaign);
-
-      // const dividents = ethers.utils.parseEther("10");
-      const price = ethers.utils.parseEther("1");
-      
-      for (const user of [secondUser,thirdUser]){
-        const currUser = platform.connect(user);
-        await currUser.contribute(0,{value: price});        
-      }
+      const { platform } = await loadFixture(makeContributions);
 
       const crowdfundingFirstUser = await platform.connect(firstUser);
 
       //make sure the contributions have been succesfull.
-      expect(await crowdfundingFirstUser.testCampaignGetter(0)).to.equal(ethers.utils.parseEther("2"));
+      expect(await crowdfundingFirstUser.testTotalSupplyGetter(0)).to.equal(toWei("2"));
       
       //wait for the short campaign to expire
       await delay(5000);
@@ -74,12 +73,47 @@ describe("CrowdfundingPlatform", function () {
       await crowdfundingFirstUser.refund(0);      
 
       //make sure the funds have really been returned.
-      expect(await crowdfundingFirstUser.testCampaignGetter(0)).to.equal(0);
+      expect(await crowdfundingFirstUser.testTotalSupplyGetter(0)).to.equal(0);
       
     });
   });
 
-  
+  describe("Distributions", function () {
+    it("Should revert if not called by creator",async function () {
+
+      const { platform } = await loadFixture(makeContributions);
+      const currUser = await platform.connect(secondUser);
+      
+      const price = toWei("5");
+      
+      try {
+        await currUser.distribute(0, {value: price});
+      } 
+      catch (error) {
+        expectRevert(error, "Only the creator can distribute");
+      }
+    });
+    
+    it("should succeed",async function () {
+      const { platform } = await loadFixture(makeContributions);
+      
+      //connecting the creator after making contributions with other accounts
+      const crowdfundingFirstUser = platform.connect(firstUser);
+      
+      //first calling 
+      let balance = BigInt(await ethers.provider.getBalance(secondUser.address));
+
+      await expect(balance < toWei("10000")).to.equal(true);
+
+      await crowdfundingFirstUser.distribute(0, {value: toWei("10")});
+      
+      balance = BigInt(await ethers.provider.getBalance(secondUser.address));
+      await expect(balance > toWei("10000")).to.equal(true);
+      
+    });
+
+
+  });
 });
 
 
@@ -89,4 +123,8 @@ async function getFirstUserCrowdfunding(platform, firstUser) {
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function toWei(val) {
+  return ethers.utils.parseEther(val);
 }

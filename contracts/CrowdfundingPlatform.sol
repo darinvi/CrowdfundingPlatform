@@ -46,7 +46,7 @@ contract CrowdfundingPlatform {
         contributors[id].push(msg.sender);
         campaign.mint(msg.sender,msg.value);
         
-        //Release of funds automated, no need for the creator to worry about it
+        // Release of funds automated, no need for the creator to worry about it
         if (campaign.totalSupply() == campaign.maxSupply()) {
             releaseOfFunds(campaign.creator(),id);
         }
@@ -54,7 +54,7 @@ contract CrowdfundingPlatform {
 
 
     function releaseOfFunds(address creator, uint id) internal {
-        //No need to check if funding goal reached as I do before calling the funciton
+        // No need to check if funding goal reached as I do before calling the funciton
         require(!released[creator][id],"Already released"); //check
 
         released[creator][id] = true;  //effect
@@ -65,8 +65,8 @@ contract CrowdfundingPlatform {
 
 
     function refund(uint id) external {
-        //requires have to be implemented in the campain contract as if they were implemented here,
-        //funciton calls from other places would offer possible angles for an attack vector      
+        // requires have to be implemented in the campain contract. If they were implemented here,
+        // funciton calls from other places would offer possible attack vectors      
         campaigns[id].refund{value: campaigns[id].totalSupply()}(contributors[id]);
         emit campaignRefunded(id);
     }
@@ -77,8 +77,8 @@ contract CrowdfundingPlatform {
         emit dividentDistribution(id, msg.value);
     }
 
-    //only implemented for use in tests
-    function testCampaignGetter(uint id) public view returns(uint) {
+    //@notice only implemented for def purposes. Used in tests
+    function testTotalSupplyGetter(uint id) public view returns(uint) {
         return campaigns[id].totalSupply();
     }
 
